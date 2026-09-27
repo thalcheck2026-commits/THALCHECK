@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>thalcheck</title>
+<style>
+:root{
+  --paper:#fbfaf7; --panel:#ffffff; --ink:#1c2430; --muted:#66707d; --line:#d9d5cb; --tint:#f1eee6;
+  --thal:#8a1c3a; --thal-bg:#f7e6ea; --ida:#1f5f8b; --ida-bg:#e3eef6; --ok:#2f6b4f; --warn:#a86a00; --warn-bg:#faf0d9;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+h1,h2,h3{font-family:Georgia,"Times New Roman",serif;font-weight:600;margin:0}
+header{border-bottom:2px solid var(--ink);padding:18px 20px 0;max-width:980px;margin:0 auto}
+header h1{font-size:28px;letter-spacing:-.01em}
+header p{margin:2px 0 12px;color:var(--muted);font-size:13px}
+nav{display:flex;gap:4px}
+nav button{background:none;border:0;border-bottom:3px solid transparent;padding:10px 14px;font:inherit;cursor:pointer;color:var(--muted)}
+nav button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--thal);font-weight:600}
+nav button:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--ida);outline-offset:2px}
+main{max-width:980px;margin:0 auto;padding:20px}
+section[hidden]{display:none}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px}
+label{display:block;font-size:13px;color:var(--muted)}
+label b{color:var(--ink);font-weight:600}
+input,select,textarea{width:100%;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink)}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-top:14px}
+.row>*{flex:1 1 180px}
+button.btn{font:inherit;padding:9px 16px;border:1px solid var(--ink);background:var(--ink);color:#fff;border-radius:4px;cursor:pointer}
+button.btn.alt{background:var(--panel);color:var(--ink)}
+button.btn.danger{background:var(--panel);color:var(--thal);border-color:var(--thal)}
+.report{background:var(--panel);border:1px solid var(--line);margin-top:20px}
+.report h2{font-size:17px;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--tint)}
+.verdict{padding:16px 14px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;border-bottom:1px solid var(--line)}
+.verdict .big{font-family:Georgia,serif;font-size:24px}
+.bar{display:flex;height:14px;border:1px solid var(--line);flex:1 1 220px;min-width:180px;background:var(--tint)}
+.bar i{display:block;height:100%}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--muted);font-size:13px;background:var(--panel)}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.chip{display:inline-block;padding:2px 9px;border-radius:99px;font-size:13px;font-weight:600}
+.chip.thal{background:var(--thal-bg);color:var(--thal)}
+.chip.ida{background:var(--ida-bg);color:var(--ida)}
+.chip.na{background:var(--tint);color:var(--muted);font-weight:400}
+.note{background:var(--warn-bg);border-left:3px solid var(--warn);padding:10px 12px;font-size:13.5px;margin-top:16px}
+.muted{color:var(--muted);font-size:13px}
+.scroll{overflow-x:auto}
+.status{font-size:13px;color:var(--ok);min-height:20px;margin-top:8px}
+.status.err{color:var(--thal)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px}
+@media (prefers-reduced-motion:no-preference){.bar i{transition:width .3s}}
+</style>
+</head>
+<body>
+<header>
+  <h1>thalcheck</h1>
+  <p>Beta-thalassemia trait vs iron deficiency anemia from a CBC. A screening aid, not a diagnosis.</p>
+  <nav role="tablist">
+    <button role="tab" data-tab="screen" aria-selected="true">Screen</button>
+    <button role="tab" data-tab="records" aria-selected="false">Records</button>
+    <button role="tab" data-tab="perf" aria-selected="false">Performance</button>
+    <button role="tab" data-tab="settings" aria-selected="false">Settings</button>
+  </nav>
+</header>
+
+<main>
+<!-- SCREEN -->
+<section id="tab-screen">
+  <h3 style="margin-bottom:8px">Patient details</h3>
+  <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(170px,1fr))">
+    <label><b>Age</b> years<input id="age" type="number" step="any" min="0" max="120" inputmode="decimal"></label>
+    <label><b>Sex</b>
+      <select id="sex"><option value="">Not stated</option><option value="M">Male</option><option value="F">Female</option></select>
+    </label>
+    <label><b>Nationality</b><input id="nat" type="text" placeholder="e.g. Indian" autocomplete="off"></label>
+    <label><b>State</b><input id="state" type="text" placeholder="e.g. Tamil Nadu" autocomplete="off"></label>
+    <label><b>District</b><input id="dist" type="text" placeholder="e.g. Chennai" autocomplete="off"></label>
+    <label><b>Date &amp; time of calculation</b><input id="ts-show" type="text" readonly placeholder="Set when you run the screen"></label>
+  </div>
+  <div class="muted" id="age-note" style="margin-top:6px"></div>
+  <h3 style="margin:18px 0 8px">CBC values</h3>
+  <div class="grid">
+    <label><b>Hb</b> g/dL<input id="hb" type="number" step="any" inputmode="decimal"><span class="muted" id="h-hb" style="font-size:12px">Ref: M 13–17, F 12–15</span></label>
+    <label><b>RBC</b> ×10⁶/µL<input id="rbc" type="number" step="any" inputmode="decimal"><span class="muted" id="h-rbc" style="font-size:12px">Ref: M 4.5–5.9, F 4.0–5.2</span></label>
+    <label><b>HCT</b> %<input id="hct" type="number" step="any" inputmode="decimal"><span class="muted" id="h-hct" style="font-size:12px">Ref: M 40–50, F 36–46</span></label>
+    <label><b>MCV</b> fL<input id="mcv" type="number" step="any" inputmode="decimal"><span class="muted" id="h-mcv" style="font-size:12px">Ref: 80–100 (low &lt; 80)</span></label>
+    <label><b>MCH</b> pg<input id="mch" type="number" step="any" inputmode="decimal"><span class="muted" id="h-mch" style="font-size:12px">Ref: 27–32 (low &lt; 27)</span></label>
+    <label><b>RDW</b> %<input id="rdw" type="number" step="any" inputmode="decimal"><span class="muted" id="h-rdw" style="font-size:12px">Ref: 11.5–14.5 (high &gt; 14.5)</span></label>
+  </div>
+  <div class="row">
+    <label><b>Sample ID</b> (no patient names)<input id="sid" type="text" placeholder="e.g. T-0142" autocomplete="off"></label>
+    <label><b>Confirmed diagnosis</b> (if known, e.g. from HPLC)
+      <select id="dx">
+        <option value="">Not known yet</option>
+        <option value="thal">Beta-thalassemia trait</option>
+        <option value="ida">Iron deficiency anemia</option>
+        <option value="other">Other</option>
+      </select>
+    </label>
+  </div>
+  <div class="row">
+    <label><b>Notes</b><input id="notes" type="text" autocomplete="off"></label>
+  </div>
+  <div class="note" style="margin-top:14px;background:var(--tint);border-left-color:var(--ink)">
+    <b>How to read the ranges.</b> Each index has a cutoff. A value in the <span style="color:var(--thal)"><b>thal trait range</b></span> favours beta-thalassemia trait; a value in the <span style="color:var(--ida)"><b>IDA range</b></span> favours iron deficiency anemia. Typical thal trait: low MCV and MCH with a normal or raised RBC and a normal RDW. Typical IDA: low MCV and MCH with a low RBC and a raised RDW. Reference ranges above are adult values and vary by lab, so use your own lab's ranges if they differ.
+  </div>
+  <div class="row">
+    <div style="flex:0 0 auto;display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn" id="btn-run">Run screen</button>
+      <button class="btn alt" id="btn-save">Save to records</button>
+      <button class="btn alt" id="btn-clear">Clear</button>
+    </div>
+  </div>
+  <div class="status" id="screen-status" role="status"></div>
+  <div id="result"></div>
+  <div class="report">
+    <h2>Index formulas and cutoffs</h2>
+    <div class="scroll" id="cutoffs"></div>
+  </div>
+</section>
+
+<!-- RECORDS -->
+<section id="tab-records" hidden>
+  <div class="row" style="margin-top:0">
+    <div style="flex:0 0 auto;display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn alt" id="btn-export">Export CSV</button>
+      <button class="btn alt" id="btn-import">Import CSV</button>
+      <button class="btn danger" id="btn-wipe">Delete all records</button>
+      <input type="file" id="file" accept=".csv,text/csv" hidden>
+    </div>
+  </div>
+  <div class="status" id="rec-status" role="status"></div>
+  <div class="report">
+    <h2>Saved records <span class="muted" id="rec-count"></span></h2>
+    <div class="scroll" id="rec-table"></div>
+  </div>
+
+  <div class="report">
+    <h2>Admin — see every record from every device <span class="muted">(only you should know this password)</span></h2>
+    <div style="padding:14px">
+      <div class="row" style="margin-top:0">
+        <label><b>Admin email</b><input id="admin-email" type="email" autocomplete="username"></label>
+        <label><b>Admin password</b><input id="admin-pass" type="password" autocomplete="current-password"></label>
+      </div>
+      <div class="row">
+        <div style="flex:0 0 auto;display:flex;gap:10px">
+          <button class="btn" id="btn-admin-login">Log in as admin</button>
+          <button class="btn alt" id="btn-admin-logout" hidden>Log out</button>
+        </div>
+      </div>
+      <div class="status" id="admin-status" role="status"></div>
+    </div>
+    <div class="scroll" id="admin-table"></div>
+  </div>
+</section>
+
+<!-- PERFORMANCE -->
+<section id="tab-perf" hidden>
+  <p class="muted" style="margin-top:0">Accuracy against the confirmed diagnoses in your saved records. Only records marked thalassemia trait or iron deficiency anemia count. This is how you check the model on new patients, separate from the data it was built on.</p>
+  <div class="report">
+    <h2>Performance on saved records</h2>
+    <div class="scroll" id="perf-table"></div>
+  </div>
+</section>
+
+<!-- SETTINGS -->
+<section id="tab-settings" hidden>
+  <div class="cols">
+    <div>
+      <h3>Custom logistic model</h3>
+      <p class="muted">Enter the coefficients for the model that predicts thalassemia trait. logit = intercept + b·HCT + b·MCV + b·MCH + b·RDW. Leave blank to skip the model.</p>
+      <div class="grid" style="grid-template-columns:repeat(2,1fr)">
+        <label>Intercept<input id="c0" type="number" step="any"></label>
+        <label>HCT<input id="c1" type="number" step="any"></label>
+        <label>MCV<input id="c2" type="number" step="any"></label>
+        <label>MCH<input id="c3" type="number" step="any"></label>
+        <label>RDW<input id="c4" type="number" step="any"></label>
+        <label>Threshold (P ≥)<input id="cthr" type="number" step="any" value="0.5"></label>
+      </div>
+      <div class="row"><label>Source population (for citing)<input id="cpop" type="text" placeholder="e.g. Chennai, n=179"></label></div>
+      <div style="margin-top:14px"><button class="btn" id="btn-savesettings">Save settings</button></div>
+      <div class="status" id="set-status" role="status"></div>
+    </div>
+    <div>
+      <h3>Where data lives</h3>
+      <label style="margin-top:10px"><b>Storage</b>
+        <select id="mode">
+          <option value="personal">Only me</option>
+          <option value="shared">Shared with everyone who opens this app</option>
+        </select>
+      </label>
+      <p class="muted">Shared storage makes every record visible to all users of this app. Use sample IDs only, never patient names or contact details. Switching mode changes which set of records you see; it does not move them.</p>
+    </div>
+  </div>
+</section>
+
+<div class="note" style="margin-top:28px">Research prototype. The custom model has not been externally validated, and no CBC index separates these conditions perfectly. Confirm with HPLC or DNA analysis and iron studies.</div>
+</main>
+
+<script type="module">
+// ============================================================================
+// FIREBASE SETUP — fill in your own project's config below.
+// Get this by creating a free project at https://console.firebase.google.com
+// then Project settings > General > "Your apps" > Web app > SDK setup > Config.
+// Leave FIREBASE_ENABLED = false to fall back to per-browser localStorage only
+// (fine for trying the app out, but data will NOT sync across devices/users).
+// ============================================================================
+const FIREBASE_ENABLED = true; // set to true once firebaseConfig below is filled in
+const firebaseConfig = {
+  apiKey: "AIzaSyBrazCRHAxsaF5uXIrgWH1VqgOlWBtkOGw",
+  authDomain: "thalcheck.firebaseapp.com",
+  projectId: "thalcheck",
+  storageBucket: "thalcheck.firebasestorage.app",
+  messagingSenderId: "1045717716839",
+  appId: "1:1045717716839:web:3b25190e4064f0ca4b29c2"
+};
+
+if (FIREBASE_ENABLED) {
+  const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js");
+  const { getFirestore, doc, getDoc, setDoc, collection, addDoc, getDocs, query, orderBy, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js");
+  const { getAuth, signInAnonymously, signInWithEmailAndPassword, signOut, onAuthStateChanged } = await import("https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js");
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+
+  let uid = null;
+  let isAdmin = false;
+  const ready = new Promise(resolve => {
+    onAuthStateChanged(auth, user => {
+      if (user) { uid = user.uid; isAdmin = !user.isAnonymous; resolve(); }
+      else signInAnonymously(auth).catch(err => console.error('Firebase sign-in failed', err));
+    });
+  });
+
+  window.storage = {
+    async get(key, useShared) {
+      await ready;
+      const ref = useShared ? doc(db, 'thalcheck_shared', key) : doc(db, 'thalcheck_users', uid, 'data', key);
+      const snap = await getDoc(ref);
+      return snap.exists() ? { key, value: snap.data().value, shared: !!useShared } : null;
+    },
+    async set(key, value, useShared) {
+      await ready;
+      const ref = useShared ? doc(db, 'thalcheck_shared', key) : doc(db, 'thalcheck_users', uid, 'data', key);
+      await setDoc(ref, { value });
+      return { key, value, shared: !!useShared };
+    }
+  };
+
+  // A one-way "drop box": every saved record also gets copied here.
+  // Ordinary visitors can add to this box but never read it back — only
+  // whoever signs in with the admin email/password (set up in Firebase
+  // Authentication, and matched in the Firestore Rules) can open it.
+  window.__thalcheckAdmin = {
+    async pushMaster(rec) {
+      try { await ready; await addDoc(collection(db, 'thalcheck_master'), { ...rec, _savedAt: serverTimestamp() }); }
+      catch (e) { console.error('Could not log record for admin view', e); }
+    },
+    async signIn(email, password) {
+      await signInWithEmailAndPassword(auth, email, password);
+      isAdmin = true;
+    },
+    async signOut() {
+      await signOut(auth);
+      isAdmin = false;
+      await signInAnonymously(auth).catch(()=>{});
+    },
+    async fetchAll() {
+      const snap = await getDocs(query(collection(db, 'thalcheck_master'), orderBy('_savedAt', 'desc')));
+      return snap.docs.map(d => d.data());
+    }
+  };
+} else {
+  window.__thalcheckAdmin = {
+    async pushMaster() {},
+    async signIn() { throw new Error('Turn FIREBASE_ENABLED on first.'); },
+    async signOut() {},
+    async fetchAll() { return []; }
+  };
+}
+// ============================================================================
+
+// ---------- storage (window.storage from Firebase above, localStorage fallback otherwise) ----------
+const hasWS = typeof window !== 'undefined' && window.storage && typeof window.storage.get === 'function';
+let shared = false;
+const K = {records:'thalcheck:records', settings:'thalcheck:settings', mode:'thalcheck:mode'};
+async function sget(key, useShared){
+  try{
+    if(hasWS){ const r = await window.storage.get(key, useShared); return r && r.value ? JSON.parse(r.value) : null; }
+    const v = localStorage.getItem((useShared?'s:':'p:')+key); return v ? JSON.parse(v) : null;
+  }catch(e){ return null; }
+}
+async function sset(key, val, useShared){
+  try{
+    if(hasWS){ const r = await window.storage.set(key, JSON.stringify(val), useShared); return !!r; }
+    localStorage.setItem((useShared?'s:':'p:')+key, JSON.stringify(val)); return true;
+  }catch(e){ console.error(e); return false; }
+}
+
+// ---------- state ----------
+let records = [];
+let settings = {c:[null,null,null,null,null], thr:0.5, pop:'', bord:true};
+const $ = id => document.getElementById(id);
+const FIELDS = ['hb','rbc','hct','mcv','mch','rdw'];
+
+// ---------- indices (Barrett et al. 2016 set). thal = true means "favours beta-thal trait" ----------
+const INDICES = [
+  {key:'ef',  name:'England & Fraser', rule:'< 0', need:['mcv','rbc','hb'], f:p=>p.mcv-p.rbc-5*p.hb-3.4, thal:v=>v<0},
+  {key:'gk',  name:'Green & King',     rule:'< 65', need:['mcv','rdw','hb'], f:p=>(p.mcv*p.mcv*p.rdw)/(100*p.hb), thal:v=>v<65},
+  {key:'men', name:'Mentzer',          rule:'< 13', need:['mcv','rbc'], f:p=>p.mcv/p.rbc, thal:v=>v<13},
+  {key:'sl',  name:'Shine & Lal',      rule:'< 1530', need:['mcv','mch'], f:p=>p.mcv*p.mcv*p.mch*0.01, thal:v=>v<1530},
+  {key:'ric', name:'Ricerca',          rule:'< 4.4', need:['rdw','rbc'], f:p=>p.rdw/p.rbc, thal:v=>v<4.4},
+  {key:'sri', name:'Srivastava',       rule:'< 3.8', need:['mch','rbc'], f:p=>p.mch/p.rbc, thal:v=>v<3.8},
+  {key:'ehs', name:'Ehsani',           rule:'< 15', need:['mcv','rbc'], f:p=>p.mcv-10*p.rbc, thal:v=>v<15},
+  {key:'sir', name:'Sirdah',           rule:'< 27', need:['mcv','rbc','hb'], f:p=>p.mcv-p.rbc-3*p.hb, thal:v=>v<27},
+  {key:'bor', name:'Bordbar', rule:'≥ 44.76', need:['mcv','mch'], f:p=>(80-p.mcv)*(27-p.mch), thal:v=>v>=44.76},
+  {key:'rdi', name:'RDW Index',        rule:'< 220', need:['mcv','rdw','rbc'], f:p=>(p.mcv*p.rdw)/p.rbc, thal:v=>v<220},
+];
+function customConfigured(){ return settings.c.every(x=>typeof x==='number' && isFinite(x)); }
+function runAll(p){
+  const out = [];
+  for(const ix of INDICES){
+    if(ix.need.some(k=>!isFinite(p[k]))){ out.push({...ix, value:null, thal:null, counted:false}); continue; }
+    const v = ix.f(p);
+    out.push({key:ix.key, name:ix.name, rule:ix.rule, value:v, thal:ix.thal(Math.round(v*100)/100), counted:true});
+  }
+  if(customConfigured() && ['hct','mcv','mch','rdw'].every(k=>isFinite(p[k]))){
+    const z = settings.c[0]+settings.c[1]*p.hct+settings.c[2]*p.mcv+settings.c[3]*p.mch+settings.c[4]*p.rdw;
+    const prob = 1/(1+Math.exp(-z));
+    out.push({key:'cust', name:'Custom model (logistic)', rule:'P ≥ '+settings.thr, value:prob, thal:prob>=settings.thr, counted:true, prob:true});
+  } else {
+    out.push({key:'cust', name:'Custom model (logistic)', rule:'P ≥ '+settings.thr, value:null, thal:null, counted:false, prob:true, unset:!customConfigured()});
+  }
+  return out;
+}
+function consensus(rows){
+  const c = rows.filter(r=>r.counted && r.thal!==null);
+  const t = c.filter(r=>r.thal).length, i = c.length - t;
+  let verdict = 'na';
+  if(c.length){ verdict = t>i ? 'thal' : i>t ? 'ida' : 'tie'; }
+  return {t,i,n:c.length,verdict};
+}
+const LABEL = {thal:'Favours beta-thalassemia trait', ida:'Favours iron deficiency anemia', tie:'Split vote', na:'Not enough values'};
+const SHORT = {thal:'Thal trait', ida:'IDA', other:'Other', '':'Unknown'};
+const fmt = (v,prob)=> v===null ? '–' : prob ? v.toFixed(3) : (Math.abs(v)>=100? v.toFixed(0): v.toFixed(2));
+// turns a rule like "< 13" into the two indication ranges
+function ranges(rule){
+  const m = rule.match(/^(P ≥ |[<>≥] )\s*([\d.]+)$/);
+  if(!m) return {thal:rule, ida:'otherwise'};
+  const op = m[1].trim(), x = m[2];
+  if(op==='<') return {thal:'< '+x, ida:'≥ '+x};
+  if(op==='>') return {thal:'> '+x, ida:'≤ '+x};
+  if(op==='≥') return {thal:'≥ '+x, ida:'< '+x};
+  return {thal:'P ≥ '+x, ida:'P < '+x};
+}
+function chip(t){ return t===null ? '<span class="chip na">n/a</span>' : t ? '<span class="chip thal">Thal trait</span>' : '<span class="chip ida">IDA</span>'; }
+const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// ---------- patient details, timestamp, reference hints ----------
+const FORM = {ef:'MCV − RBC − 5×Hb − 3.4', gk:'MCV² × RDW ÷ (100 × Hb)', men:'MCV ÷ RBC', sl:'MCV² × MCH × 0.01',
+  ric:'RDW ÷ RBC', sri:'MCH ÷ RBC', ehs:'MCV − 10 × RBC', sir:'MCV − RBC − 3×Hb', bor:'(80 − MCV) × (27 − MCH)', rdi:'MCV × RDW ÷ RBC'};
+function demo(){ return {age:$('age').value.trim(), sex:$('sex').value, nat:$('nat').value.trim(), state:$('state').value.trim(), dist:$('dist').value.trim()}; }
+function checkDemo(){
+  const a = $('age').value.trim();
+  if(a!=='' && (!isFinite(parseFloat(a)) || parseFloat(a)<0 || parseFloat(a)>120)) return 'Age should be between 0 and 120 years.';
+  return null;
+}
+function stamp(){ const d=new Date(); $('ts-show').value = d.toLocaleString(); return d.toISOString(); }
+function updateHints(){
+  const sx = $('sex').value;
+  const R = {hb:['13–17','12–15'], rbc:['4.5–5.9','4.0–5.2'], hct:['40–50','36–46']};
+  for(const k in R){
+    $('h-'+k).textContent = sx==='M' ? 'Ref (male): '+R[k][0] : sx==='F' ? 'Ref (female): '+R[k][1] : 'Ref: M '+R[k][0]+', F '+R[k][1];
+  }
+  const a = parseFloat($('age').value);
+  $('age-note').textContent = isFinite(a) && a<18 ? 'Reference ranges here are adult values. Use age-specific paediatric ranges for children.' : '';
+}
+$('sex').onchange = updateHints; $('age').oninput = updateHints;
+function buildCutoffs(){
+  let h = '<table><thead><tr><th>Index</th><th>Formula</th><th>Thal trait range</th><th>IDA range</th></tr></thead><tbody>';
+  for(const ix of INDICES){
+    const g = ranges(ix.rule);
+    h += '<tr><td>'+esc(ix.name)+'</td><td class="num">'+esc(FORM[ix.key])+'</td><td class="num" style="color:var(--thal)">'+esc(g.thal)+'</td><td class="num" style="color:var(--ida)">'+esc(g.ida)+'</td></tr>';
+  }
+  const g = ranges('P ≥ '+settings.thr);
+  h += '<tr><td>Custom model (logistic)</td><td>intercept + b·HCT + b·MCV + b·MCH + b·RDW, then P = 1 ÷ (1 + e<sup>−logit</sup>)</td><td class="num" style="color:var(--thal)">'+esc(g.thal)+'</td><td class="num" style="color:var(--ida)">'+esc(g.ida)+'</td></tr>';
+  $('cutoffs').innerHTML = h+'</tbody></table>';
+}
+
+// ---------- screen ----------
+function readInputs(){ const p={}; FIELDS.forEach(k=>{ const v=parseFloat($(k).value); p[k]=isFinite(v)?v:NaN; }); return p; }
+function validate(p){
+  const rng = {hb:[2,25],rbc:[1,9],hct:[8,70],mcv:[40,130],mch:[10,45],rdw:[8,40]};
+  for(const k of FIELDS){ if(isFinite(p[k]) && (p[k]<rng[k][0]||p[k]>rng[k][1])) return k.toUpperCase()+' looks out of range ('+rng[k][0]+'–'+rng[k][1]+'). Check the value and units.'; }
+  return null;
+}
+function renderResult(p, tsIso){
+  tsIso = tsIso || stamp();
+  const d = demo(), rows = runAll(p), c = consensus(rows);
+  const dl = [d.age?d.age+' y':'', d.sex==='M'?'Male':d.sex==='F'?'Female':'', d.nat, d.dist, d.state].filter(Boolean).join(', ');
+  const tw = c.n? (c.t/c.n*100):0, iw = c.n? (c.i/c.n*100):0;
+  const cls = c.verdict==='thal'?'thal':c.verdict==='ida'?'ida':'na';
+  let h = '<div class="report"><h2>Result <span class="muted">'+(dl?esc(dl)+' · ':'')+'calculated '+esc(new Date(tsIso).toLocaleString())+'</span></h2><div class="verdict"><div><div class="big">'+LABEL[c.verdict]+'</div>'+
+    '<div class="muted">'+c.t+' of '+c.n+' counted algorithms say thal trait, '+c.i+' say IDA</div></div>'+
+    '<div class="bar" aria-label="vote split"><i style="width:'+tw+'%;background:var(--thal)"></i><i style="width:'+iw+'%;background:var(--ida)"></i></div></div>'+
+    '<div class="scroll"><table><thead><tr><th>Algorithm</th><th>Your value</th><th>Thal trait range</th><th>IDA range</th><th>Verdict</th><th>In vote</th></tr></thead><tbody>';
+  for(const r of rows){
+    h += (()=>{const g=ranges(r.rule);return '<tr><td>'+esc(r.name)+'</td><td class="num"><b>'+fmt(r.value,r.prob)+'</b></td><td class="num" style="color:var(--thal)">'+esc(g.thal)+'</td><td class="num" style="color:var(--ida)">'+esc(g.ida)+'</td><td>'+
+      (r.unset? '<span class="chip na">set coefficients in Settings</span>' : chip(r.thal))+'</td><td>'+(r.counted?'yes':'no')+'</td></tr>';})();
+  }
+  h += '</tbody></table></div></div>';
+  $('result').innerHTML = h;
+  return c;
+}
+function say(id,msg,err){ const el=$(id); el.textContent=msg; el.className='status'+(err?' err':''); }
+$('btn-run').onclick = ()=>{
+  const p = readInputs(); const bad = validate(p) || checkDemo();
+  if(bad){ say('screen-status',bad,true); return; }
+  if(!FIELDS.some(k=>isFinite(p[k]))){ say('screen-status','Enter at least the CBC values you have.',true); return; }
+  say('screen-status',''); renderResult(p);
+};
+$('btn-clear').onclick = ()=>{ FIELDS.concat(['sid','notes','age','nat','state','dist','ts-show']).forEach(k=>$(k).value=''); $('dx').value=''; $('sex').value=''; updateHints(); $('result').innerHTML=''; say('screen-status',''); };
+$('btn-save').onclick = async ()=>{
+  const p = readInputs(); const bad = validate(p) || checkDemo();
+  if(bad){ say('screen-status',bad,true); return; }
+  if(FIELDS.some(k=>!isFinite(p[k]))){ say('screen-status','Fill in all six CBC values to save a record.',true); return; }
+  const id = $('sid').value.trim() || ('S-'+String(records.length+1).padStart(4,'0'));
+  if(records.some(r=>r.id===id)){ say('screen-status','Sample ID "'+id+'" already exists. Use a different ID.',true); return; }
+  const ts = stamp(), d = demo();
+  const rec = {id, ts, date:ts.slice(0,10), age:d.age, sex:d.sex, nat:d.nat, state:d.state, dist:d.dist, ...p, dx:$('dx').value, notes:$('notes').value.trim()};
+  records.push(rec);
+  const ok = await sset(K.records, records, shared);
+  if(!ok){ records.pop(); say('screen-status','Could not save. Try again.',true); return; }
+  window.__thalcheckAdmin.pushMaster(rec);
+  renderResult(p, ts); say('screen-status','Saved '+id+'.'); refreshRecords(); refreshPerf();
+};
+
+// ---------- records ----------
+function refreshRecords(){
+  $('rec-count').textContent = records.length ? '('+records.length+')' : '';
+  if(!records.length){ $('rec-table').innerHTML = '<p class="muted" style="padding:14px">No records yet. Run a screen and choose Save to records, or import a CSV.</p>'; return; }
+  let h = '<table><thead><tr><th>ID</th><th>Calculated</th><th>Age</th><th>Sex</th><th>Nationality</th><th>State</th><th>District</th><th>Hb</th><th>RBC</th><th>HCT</th><th>MCV</th><th>MCH</th><th>RDW</th><th>Screen</th><th>Confirmed</th><th>Notes</th><th></th></tr></thead><tbody>';
+  records.forEach((r,ix)=>{
+    const c = consensus(runAll(r));
+    h += '<tr><td>'+esc(r.id)+'</td><td class="num">'+esc(r.ts?new Date(r.ts).toLocaleString():r.date)+'</td><td class="num">'+esc(r.age)+'</td><td>'+esc(r.sex)+'</td><td>'+esc(r.nat)+'</td><td>'+esc(r.state)+'</td><td>'+esc(r.dist)+'</td>'+FIELDS.map(k=>'<td class="num">'+esc(r[k])+'</td>').join('')+
+      '<td>'+(c.verdict==='thal'?'<span class="chip thal">Thal trait</span>':c.verdict==='ida'?'<span class="chip ida">IDA</span>':'<span class="chip na">'+(c.verdict==='tie'?'split':'n/a')+'</span>')+'</td>'+
+      '<td><select data-dx="'+ix+'" aria-label="Confirmed diagnosis for '+esc(r.id)+'"><option value="">Unknown</option><option value="thal"'+(r.dx==='thal'?' selected':'')+'>Thal trait</option><option value="ida"'+(r.dx==='ida'?' selected':'')+'>IDA</option><option value="other"'+(r.dx==='other'?' selected':'')+'>Other</option></select></td>'+
+      '<td>'+esc(r.notes)+'</td><td><button class="btn danger" data-del="'+ix+'" style="padding:4px 10px">Delete</button></td></tr>';
+  });
+  $('rec-table').innerHTML = h+'</tbody></table>';
+}
+$('rec-table').addEventListener('change', async e=>{
+  const ix = e.target.dataset.dx; if(ix===undefined) return;
+  records[ix].dx = e.target.value;
+  const ok = await sset(K.records, records, shared);
+  say('rec-status', ok?'Updated '+records[ix].id+'.':'Could not save the change.', !ok); refreshPerf();
+});
+$('rec-table').addEventListener('click', async e=>{
+  const ix = e.target.dataset.del; if(ix===undefined) return;
+  const r = records[ix];
+  if(!confirm('Delete record '+r.id+'?')) return;
+  records.splice(ix,1);
+  await sset(K.records, records, shared);
+  refreshRecords(); refreshPerf(); say('rec-status','Deleted '+r.id+'.');
+});
+$('btn-wipe').onclick = async ()=>{
+  if(!records.length) return;
+  if(!confirm('Delete all '+records.length+' records? This cannot be undone. Export a CSV first if you need a copy.')) return;
+  records = []; await sset(K.records, records, shared); refreshRecords(); refreshPerf(); say('rec-status','All records deleted.');
+};
+$('btn-export').onclick = ()=>{
+  if(!records.length){ say('rec-status','Nothing to export yet.',true); return; }
+  const head = ['id','calculated_at','age','sex','nationality','state','district',...FIELDS,'confirmed','notes'];
+  const q = v=>{ v=String(v??''); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; };
+  const csv = [head.join(',')].concat(records.map(r=>[r.id,r.ts||r.date,r.age,r.sex,r.nat,r.state,r.dist,...FIELDS.map(k=>r[k]),r.dx,r.notes].map(q).join(','))).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download='thalcheck-records-'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+};
+function parseCSV(text){
+  const rows=[]; let row=[],cur='',inq=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(inq){ if(ch==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else inq=false; } else cur+=ch; }
+    else if(ch==='"') inq=true;
+    else if(ch===','){ row.push(cur); cur=''; }
+    else if(ch==='\n'||ch==='\r'){ if(ch==='\r'&&text[i+1]==='\n') i++; row.push(cur); cur=''; if(row.some(x=>x!=='')) rows.push(row); row=[]; }
+    else cur+=ch;
+  }
+  row.push(cur); if(row.some(x=>x!=='')) rows.push(row);
+  return rows;
+}
+$('btn-import').onclick = ()=>$('file').click();
+$('file').onchange = async e=>{
+  const f = e.target.files[0]; if(!f) return;
+  const rows = parseCSV(await f.text()); e.target.value='';
+  if(rows.length<2){ say('rec-status','That file has no data rows.',true); return; }
+  const head = rows[0].map(h=>h.trim().toLowerCase());
+  const col = n=>head.indexOf(n);
+  if(FIELDS.some(k=>col(k)<0) || col('id')<0){ say('rec-status','The CSV needs these columns: id, hb, rbc, hct, mcv, mch, rdw. Optional: date, confirmed, notes.',true); return; }
+  let added=0, skipped=0;
+  for(const r of rows.slice(1)){
+    const id = (r[col('id')]||'').trim(); if(!id || records.some(x=>x.id===id)){ skipped++; continue; }
+    const when = (col('calculated_at')>=0&&r[col('calculated_at')]) || (col('date')>=0&&r[col('date')]) || new Date().toISOString();
+    const rec = {id, ts:when, date:String(when).slice(0,10)};
+    rec.age = col('age')>=0 ? (r[col('age')]||'').trim() : '';
+    const sx = col('sex')>=0 ? (r[col('sex')]||'').trim().toUpperCase().charAt(0) : '';
+    rec.sex = sx==='M'||sx==='F' ? sx : '';
+    rec.nat = col('nationality')>=0 ? (r[col('nationality')]||'').trim() : '';
+    rec.state = col('state')>=0 ? (r[col('state')]||'').trim() : '';
+    rec.dist = col('district')>=0 ? (r[col('district')]||'').trim() : '';
+    let okrow = true;
+    FIELDS.forEach(k=>{ const v=parseFloat(r[col(k)]); if(!isFinite(v)) okrow=false; rec[k]=v; });
+    if(!okrow){ skipped++; continue; }
+    const dx = col('confirmed')>=0 ? (r[col('confirmed')]||'').trim().toLowerCase() : '';
+    rec.dx = ['thal','ida','other'].includes(dx)?dx:'';
+    rec.notes = col('notes')>=0 ? (r[col('notes')]||'') : '';
+    records.push(rec); added++;
+    window.__thalcheckAdmin.pushMaster(rec);
+  }
+  const ok = await sset(K.records, records, shared);
+  refreshRecords(); refreshPerf();
+  say('rec-status', ok ? 'Imported '+added+' records'+(skipped?', skipped '+skipped+' (duplicate ID or missing value)':'')+'.' : 'Import failed to save.', !ok);
+};
+
+// ---------- admin (all-records view) ----------
+function renderAdminTable(all){
+  if(!all.length){ $('admin-table').innerHTML = '<p class="muted" style="padding:14px">No records saved by anyone yet.</p>'; return; }
+  let h = '<table><thead><tr><th>ID</th><th>Calculated</th><th>Age</th><th>Sex</th><th>Nationality</th><th>State</th><th>District</th><th>Hb</th><th>RBC</th><th>HCT</th><th>MCV</th><th>MCH</th><th>RDW</th><th>Screen</th><th>Confirmed</th><th>Notes</th></tr></thead><tbody>';
+  all.forEach(r=>{
+    const c = consensus(runAll(r));
+    h += '<tr><td>'+esc(r.id)+'</td><td class="num">'+esc(r.ts?new Date(r.ts).toLocaleString():r.date)+'</td><td class="num">'+esc(r.age)+'</td><td>'+esc(r.sex)+'</td><td>'+esc(r.nat)+'</td><td>'+esc(r.state)+'</td><td>'+esc(r.dist)+'</td>'+FIELDS.map(k=>'<td class="num">'+esc(r[k])+'</td>').join('')+
+      '<td>'+(c.verdict==='thal'?'<span class="chip thal">Thal trait</span>':c.verdict==='ida'?'<span class="chip ida">IDA</span>':'<span class="chip na">'+(c.verdict==='tie'?'split':'n/a')+'</span>')+'</td>'+
+      '<td>'+esc(SHORT[r.dx]||'Unknown')+'</td><td>'+esc(r.notes)+'</td></tr>';
+  });
+  $('admin-table').innerHTML = h + '</tbody></table>';
+}
+$('btn-admin-login').onclick = async ()=>{
+  const email = $('admin-email').value.trim(), pass = $('admin-pass').value;
+  if(!email || !pass){ say('admin-status','Enter your admin email and password.',true); return; }
+  say('admin-status','Logging in...');
+  try{
+    await window.__thalcheckAdmin.signIn(email, pass);
+    const all = await window.__thalcheckAdmin.fetchAll();
+    renderAdminTable(all);
+    $('btn-admin-logout').hidden = false;
+    say('admin-status','Showing '+all.length+' record(s) from everyone.');
+  }catch(e){ say('admin-status','Login failed. Check the email and password (set these up in Firebase first).',true); }
+};
+$('btn-admin-logout').onclick = async ()=>{
+  await window.__thalcheckAdmin.signOut();
+  $('admin-table').innerHTML=''; $('admin-email').value=''; $('admin-pass').value='';
+  $('btn-admin-logout').hidden = true; say('admin-status','Logged out.');
+};
+
+// ---------- performance ----------
+function refreshPerf(){
+  const lab = records.filter(r=>r.dx==='thal'||r.dx==='ida');
+  if(!lab.length){ $('perf-table').innerHTML='<p class="muted" style="padding:14px">No records with a confirmed diagnosis yet. Mark records as Thal trait or IDA in the Records tab.</p>'; return; }
+  const nT = lab.filter(r=>r.dx==='thal').length, nI = lab.length-nT;
+  const names = [...INDICES.map(i=>[i.key,i.name]), ['cust','Custom model (logistic)'], ['cons','Consensus vote']];
+  const tally = {}; names.forEach(([k])=>tally[k]={tp:0,fn:0,tn:0,fp:0,skip:0});
+  for(const r of lab){
+    const rows = runAll(r), c = consensus(rows);
+    const verdicts = {}; rows.forEach(x=>verdicts[x.key]=x.thal);
+    verdicts.cons = c.verdict==='thal'?true:c.verdict==='ida'?false:null;
+    for(const [k] of names){
+      const v = verdicts[k], t=tally[k];
+      if(v===null||v===undefined){ t.skip++; continue; }
+      if(r.dx==='thal'){ v?t.tp++:t.fn++; } else { v?t.fp++:t.tn++; }
+    }
+  }
+  const pct = (a,b)=> b? (a/b*100).toFixed(0)+'%' : '–';
+  let h = '<p class="muted" style="padding:10px 14px;margin:0">'+lab.length+' labelled records: '+nT+' thal trait, '+nI+' IDA. Small numbers give wide error; treat percentages loosely until you have more.</p>'+
+    '<table><thead><tr><th>Algorithm</th><th>Accuracy</th><th>Sensitivity</th><th>Specificity</th><th>Skipped</th></tr></thead><tbody>';
+  for(const [k,n] of names){
+    const t = tally[k]; const used = t.tp+t.fn+t.tn+t.fp;
+    h += '<tr><td>'+esc(n)+'</td><td class="num">'+pct(t.tp+t.tn,used)+'</td><td class="num">'+pct(t.tp,t.tp+t.fn)+'</td><td class="num">'+pct(t.tn,t.tn+t.fp)+'</td><td class="num">'+t.skip+'</td></tr>';
+  }
+  $('perf-table').innerHTML = h+'</tbody></table>';
+}
+
+// ---------- settings ----------
+function fillSettings(){
+  settings.c.forEach((v,i)=>$('c'+i).value = v===null?'':v);
+  $('cthr').value = settings.thr; $('cpop').value = settings.pop; $('mode').value = shared?'shared':'personal';
+}
+$('btn-savesettings').onclick = async ()=>{
+  const c = [0,1,2,3,4].map(i=>{ const v=parseFloat($('c'+i).value); return isFinite(v)?v:null; });
+  const any = c.some(x=>x!==null), all = c.every(x=>x!==null);
+  if(any && !all){ say('set-status','Enter all five coefficients, or clear them all.',true); return; }
+  const thr = parseFloat($('cthr').value);
+  if(!isFinite(thr)||thr<=0||thr>=1){ say('set-status','Threshold must be between 0 and 1.',true); return; }
+  settings = {c, thr, pop:$('cpop').value.trim()};
+  const ok = await sset(K.settings, settings, shared);
+  say('set-status', ok?'Settings saved.':'Could not save settings.', !ok); refreshRecords(); refreshPerf(); buildCutoffs();
+};
+$('mode').onchange = async e=>{
+  const next = e.target.value==='shared';
+  if(next && !confirm('Shared storage is visible to everyone who opens this app. Use sample IDs only. Switch to shared?')){ e.target.value='personal'; return; }
+  shared = next; await sset(K.mode, {shared}, false);
+  await loadData(); say('set-status','Now using '+(shared?'shared':'personal')+' storage.');
+};
+
+// ---------- tabs + boot ----------
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('nav button').forEach(x=>x.setAttribute('aria-selected', x===b));
+  ['screen','records','perf','settings'].forEach(t=>$('tab-'+t).hidden = t!==b.dataset.tab);
+});
+async function loadData(){
+  records = (await sget(K.records, shared)) || [];
+  const s = await sget(K.settings, shared);
+  if(s) settings = {c:s.c||[null,null,null,null,null], thr:s.thr??0.5, pop:s.pop||''};
+  fillSettings(); refreshRecords(); refreshPerf(); buildCutoffs(); updateHints();
+}
+(async()=>{ const m = await sget(K.mode,false); shared = !!(m&&m.shared); await loadData(); })();
+</script>
+</body>
+</html>
