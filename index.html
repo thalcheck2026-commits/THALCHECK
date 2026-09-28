@@ -170,7 +170,7 @@ td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
   <div class="cols">
     <div>
       <h3>Custom logistic model</h3>
-      <p class="muted">Enter the coefficients for the model that predicts thalassemia trait. logit = intercept + b·HCT + b·MCV + b·MCH + b·RDW. Leave blank to skip the model.</p>
+      <p class="muted">This model is built into the app and applies to every user automatically. It cannot be edited here. To change it, the app owner edits the file.</p><p class="muted" style="display:none">Enter the coefficients for the model that predicts thalassemia trait. logit = intercept + b·HCT + b·MCV + b·MCH + b·RDW. Leave blank to skip the model.</p>
       <div class="grid" style="grid-template-columns:repeat(2,1fr)">
         <label>Intercept<input id="c0" type="number" step="any"></label>
         <label>HCT<input id="c1" type="number" step="any"></label>
@@ -302,7 +302,8 @@ async function sset(key, val, useShared){
 
 // ---------- state ----------
 let records = [];
-let settings = {c:[null,null,null,null,null], thr:0.5, pop:'', bord:true};
+const MODEL_LOCKED = true; // built-in model; visitors cannot change it
+let settings = {c:[7.4146, 0.1154, -0.1764, 0.0745, -0.0529], thr:0.5, pop:'Built-in model, derived from n=179 HPLC-confirmed patients', bord:true};
 const $ = id => document.getElementById(id);
 const FIELDS = ['hb','rbc','hct','mcv','mch','rdw'];
 
@@ -586,9 +587,11 @@ function refreshPerf(){
 // ---------- settings ----------
 function fillSettings(){
   settings.c.forEach((v,i)=>$('c'+i).value = v===null?'':v);
+  if(MODEL_LOCKED){ ['c0','c1','c2','c3','c4','cthr','cpop'].forEach(id=>$(id).readOnly=true); $('btn-savesettings').hidden=true; }
   $('cthr').value = settings.thr; $('cpop').value = settings.pop; $('mode').value = shared?'shared':'personal';
 }
 $('btn-savesettings').onclick = async ()=>{
+  if(MODEL_LOCKED){ say('set-status','The model is built in and cannot be changed here.',true); return; }
   const c = [0,1,2,3,4].map(i=>{ const v=parseFloat($('c'+i).value); return isFinite(v)?v:null; });
   const any = c.some(x=>x!==null), all = c.every(x=>x!==null);
   if(any && !all){ say('set-status','Enter all five coefficients, or clear them all.',true); return; }
@@ -613,7 +616,7 @@ document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
 async function loadData(){
   records = (await sget(K.records, shared)) || [];
   const s = await sget(K.settings, shared);
-  if(s) settings = {c:s.c||[null,null,null,null,null], thr:s.thr??0.5, pop:s.pop||''};
+  if(s && !MODEL_LOCKED) settings = {c:s.c||[null,null,null,null,null], thr:s.thr??0.5, pop:s.pop||''};
   fillSettings(); refreshRecords(); refreshPerf(); buildCutoffs(); updateHints();
 }
 (async()=>{ const m = await sget(K.mode,false); shared = !!(m&&m.shared); await loadData(); })();
